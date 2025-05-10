@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Animation</title>
+    <style>
+        .slider-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .slider-container label {
+            margin-right: 10px;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <canvas id="canvas" style="background-color: black;"></canvas>
+        <script>
+            const canvas = document.getElementById('canvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const ctx = canvas.getContext('2d');
+            let stars = [];
+            let speed = 1; // Base speed of the stars
+            let maxRadius = 50; // Maximum radius for stars
+            let numStars = 500; // Number of stars
+            let color = "#ffffff"; // Default color for stars
+
+            function initStars() {
+                stars = []; // Clear the stars array before reinitializing
+                for (let i = 0; i < numStars; i++) {
+                    stars.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        radius: Math.random() * 2 + 1,
+                        z: Math.random() * canvas.width // Depth (z-axis) for perspective
+                    });
+                }
+            }
+            initStars(); // Initialize stars with random positions and sizes
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                canvas.addEventListener('click', (event) => {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = event.clientX - rect.left; // Get the x-coordinate of the click
+                    const y = event.clientY - rect.top;  // Get the y-coordinate of the click
+                    stars.push({
+                        x: event.clientX,
+                        y: event.clientY,
+                        radius: Math.random() * 2 + 1,
+                        z: Math.random() * 10
+                    });
+                });
+
+                // Update star positions
+                for (let i = 0; i < stars.length; i++) {
+                    const star = stars[i];
+
+                    // Move the star closer to the viewer
+                    star.z -= speed;
+
+                    // Reuse the star by moving it back to the farthest depth
+                    if (star.z <= 0) {
+                        star.z = canvas.width; // Reset depth to the farthest point
+                    }
+
+                    // Calculate the star's position and size based on its depth
+                    const perspective = canvas.width / star.z;
+                    const screenX = (star.x - canvas.width / 2) * perspective + canvas.width / 2;
+                    const screenY = (star.y - canvas.height / 2) * perspective + canvas.height / 2;
+                    const screenRadius = star.radius * perspective;
+
+                    // Draw the star
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, Math.min(screenRadius, maxRadius), 0, Math.PI * 2);
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                    ctx.closePath();
+                }
+
+                // Request the next frame
+                requestAnimationFrame(animate);
+            }
+
+            animate();
+        </script>
+        <div class="slider-container">
+            <label for="speed">Speed</label>
+            <input type="range" id="speed" min="0" max="100" value="1" onchange="speed=this.value">
+        </div>
+        
+        <div class="slider-container">
+            <label for="numStars">Number of Stars</label>
+            <input type="range" id="numStars" min="0" max="10000" value="500" onchange="numStars=this.value;initStars();">
+        </div>
+        <div class="slider-container">
+            <label for="reset">Reset</label>
+            <button id="reset" onclick="initStars()">Reset Stars</button>
+        </div>
+        <div class="slider-container">
+            <label for="clear">Color</label>
+            <input type="color" id="color" value="#ffffff" onchange="color=this.value"> 
+        </main>
+</body>
+
+</html>
