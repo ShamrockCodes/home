@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heart</title>
+</head>
+<body>
+    <main>
+        <canvas id="canvas"></canvas>
+        <script>
+            const canvas = document.getElementById('canvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const ctx = canvas.getContext('2d');
+            const hearts = [];
+
+            class Heart {
+                constructor(x, y, size, color) {
+                    this.x = x;
+                    this.y = y;
+                    this.size = size;
+                    this.color = color;
+                }
+
+                draw(ctx) {
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.bezierCurveTo(
+                        this.x - this.size / 2,
+                        this.y - this.size / 2,
+                        this.x - this.size,
+                        this.y + this.size / 2,
+                        this.x,
+                        this.y + this.size
+                    );
+                    ctx.bezierCurveTo(
+                        this.x + this.size,
+                        this.y + this.size / 2,
+                        this.x + this.size / 2,
+                        this.y - this.size / 2,
+                        this.x,
+                        this.y
+                    );
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+                update() {
+                    this.y -= 2; // Move the heart upward
+                    if (this.y + this.size < 0) {
+                        this.y = canvas.height + this.size; // Reset to the bottom if it floats off the top
+                    }
+                }
+            }
+
+            function animate() {
+                // Clear the canvas at the start of the frame
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw the text in the middle of the canvas
+                ctx.font = "90px Arial";
+                ctx.fillStyle = "red";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle"; // Ensure vertical alignment
+                ctx.fillText("I Love You Kaya", canvas.width / 2, canvas.height / 2);
+
+                // Update and draw the hearts
+                for (let heart of hearts) {
+                    heart.update(); // Update the position
+                    heart.draw(ctx); // Draw the heart
+                }
+
+                if (hearts.length === 0) {
+                    for (let i = 0; i < 15; i++) {
+                        const x = Math.random() * canvas.width;
+                        const y = Math.random() * canvas.height;
+                        const size = Math.random() * 50 + 20;
+                        hearts.push(new Heart(x, y, size, "red"));
+                    }
+                }
+
+                // Request the next animation frame
+                setTimeout(animate, 10); // Change 10 to any value in milliseconds
+            }
+
+            animate();
+        </script>
+    </main>
+    <footer></footer>
+</body>
+</html>
