@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PeerJS P2P Call</title>
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: white;
+      font-family: sans-serif;
+    }
+    #controls {
+      padding: 10px;
+      background: #222;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    button, input {
+      padding: 6px 10px;
+      font-size: 14px;
+    }
+    .video-box {
+      position: absolute;
+      width: 320px;
+      height: 180px;
+      border: 2px solid #444;
+      background: black;
+      overflow: hidden;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      user-select: none;
+    }
+    .resize-handle {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      bottom: 0;
+      right: 0;
+      background: #666;
+      cursor: se-resize;
+    }
+  </style>
+</head>
+<body>
+
+<div id="controls">
+  <div id="status">Status: <span id="connection-status">Disconnected</span></div>
+  <input id="peer-id-input" placeholder="Enter peer ID">
+  <button id="copy-id-btn">Copy My ID</button>
+  <button id="call-btn">Call (Tone)</button>
+  <button id="share-screen">Share Screen</button>
+  <button id="share-cam">Share Camera</button>
+  <button id="share-mic">Share Mic</button>
+</div>
+
+<div class="video-box" id="local-box" style="top:100px; left:50px;">
+  <video id="local-video" autoplay muted playsinline></video>
+  <div class="resize-handle"></div>
+</div>
+
+<div class="video-box" id="remote-box" style="top:100px; left:400px;">
+  <video id="remote-video" autoplay playsinline></video>
+  <div class="resize-handle"></div>
+</div>
+
+<script>
+const peer = new Peer();
+let localStream = null;
+let currentCall = null;
+
+const localVideo = document.getElementById('local-video');
+const remoteVideo = document.getElementById('remote-video');
+const callBtn = document.getElementById('call-btn');
+const statusText = document.getElementById('connection-status');
+
+function setStatus(text, color = 'white') {
+  statusText.textContent = text;
+  statusText.style.color = color;
+}
+
+const copyBtn = document.getElementById('copy-id-btn');
+copyBtn.onclick = () => {
+  navigator.clipboard.writeText(peer.id).then(() => {
+    copyBtn.innerHTML = "Copied!";
+    setTimeout(() => {
+      copyBtn.innerHTML = "Copy My ID";
+    }, 2000);
+  });
+};
+
+function createAudioFileStream(src = 'calling.wav') {
+  const audio = new Audio(src);
+  audio.crossOrigin = "anonymous";
+  audio.loop = false;
+
+  const ctx = new AudioContext();
+  const source = ctx.createMediaElementSource(audio);
+  const dest = ctx.createMediaStreamDestination();
+
+  source.connect(dest);
+  source.connect(ctx.destination); // Optional: play sound locally too
+  audio.play();
+
+  return dest.stream;
+}
+
+callBtn.onclick = () => {
+  if (!currentCall) {
+    const id = document.getElementById('peer-id-input').value.trim();
+    if (!id) return alert("Enter a peer ID.");
+    const toneStream = createAudioFileStream();
+    localVideo.srcObject = toneStream;
+    currentCall = peer.call(id, toneStream);
+    handleCall(currentCall);
+    callBtn.textContent = "Hang Up";
+  } else {
+    currentCall.close();
+    currentCall = null;
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+      localStream = null;
+      localVideo.srcObject = null;
+    }
+    callBtn.textContent = "Call (Tone)";
+    setStatus("Disconnected", "orange");
+  }
+};
+
+document.getElementById('share-screen').onclick = async () => {
+  try {
+    localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    localVideo.srcObject = localStream;
+    if (currentCall) currentCall.close();
+    const id = document.getElementById('peer-id-input').value.trim();
+    if (id) {
+      currentCall = peer.call(id, localStream);
+      handleCall(currentCall);
+      callBtn.textContent = "Hang Up";
+    }
+  } catch (e) {
+    alert("Failed to share screen.");
+  }
+};
+
+document.getElementById('share-cam').onclick = async () => {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    localVideo.srcObject = localStream;
+    if (currentCall) currentCall.close();
+    const id = document.getElementById('peer-id-input').value.trim();
+    if (id) {
+      currentCall = peer.call(id, localStream);
+      handleCall(currentCall);
+      callBtn.textContent = "Hang Up";
+    }
+  } catch (e) {
+    alert("Failed to access camera.");
+  }
+};
+
+document.getElementById('share-mic').onclick = async () => {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    localVideo.srcObject = localStream;
+    if (currentCall) currentCall.close();
+    const id = document.getElementById('peer-id-input').value.trim();
+    if (id) {
+      currentCall = peer.call(id, localStream);
+      handleCall(currentCall);
+      callBtn.textContent = "Hang Up";
+    }
+  } catch (e) {
+    alert("Failed to access microphone.");
+  }
+};
+
+function handleCall(call) {
+  call.on('stream', stream => {
+    remoteVideo.srcObject = stream;
+    setStatus("Connected", "lightgreen");
+  });
+  call.on('close', () => {
+    remoteVideo.srcObject = null;
+    setStatus("Disconnected", "orange");
+    currentCall = null;
+    callBtn.textContent = "Call (Tone)";
+  });
+  call.on('error', err => {
+    console.error(err);
+    setStatus("Error", "red");
+    currentCall = null;
+    callBtn.textContent = "Call (Tone)";
+  });
+}
+
+peer.on('open', id => setStatus("Ready — ID: " + id, "lightblue"));
+peer.on('call', call => {
+  call.answer();
+  handleCall(call);
+});
+
+function makeDraggableAndResizable(box) {
+  let dragging = false;
+  let resizing = false;
+  let offsetX, offsetY, startW, startH, startX, startY;
+  let draggingAllowed = true;
+
+  const handle = box.querySelector('.resize-handle');
+
+  box.addEventListener('mousedown', e => {
+    if (e.target === handle || !draggingAllowed) return;
+    dragging = true;
+    offsetX = e.clientX - box.offsetLeft;
+    offsetY = e.clientY - box.offsetTop;
+    e.preventDefault();
+  });
+
+  handle.addEventListener('mousedown', e => {
+    resizing = true;
+    startW = box.offsetWidth;
+    startH = box.offsetHeight;
+    startX = e.clientX;
+    startY = e.clientY;
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (dragging) {
+      box.style.left = (e.clientX - offsetX) + 'px';
+      box.style.top = (e.clientY - offsetY) + 'px';
+    } else if (resizing) {
+      box.style.width = (startW + e.clientX - startX) + 'px';
+      box.style.height = (startH + e.clientY - startY) + 'px';
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    dragging = resizing = false;
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Control') draggingAllowed = false;
+  });
+  document.addEventListener('keyup', e => {
+    if (e.key === 'Control') draggingAllowed = true;
+  });
+}
+
+makeDraggableAndResizable(document.getElementById('local-box'));
+makeDraggableAndResizable(document.getElementById('remote-box'));
+
+[localVideo, remoteVideo].forEach(video => {
+  video.addEventListener('dblclick', () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      video.requestFullscreen();
+    }
+  });
+});
+</script>
+
+</body>
+</html>
